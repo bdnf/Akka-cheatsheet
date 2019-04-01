@@ -5,8 +5,6 @@ import controllerApp.ControllerTier.{Get, Post}
 import controllerApp.FrontendTier.{ShowData, UpdateData}
 import controllerApp.DatabaseTier._
 
-case class User(username: String, email: String)
-
 object DatabaseTier {
   case object Connect
   case object Disconnect
