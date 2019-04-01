@@ -1,8 +1,16 @@
 package controllerApp
 
-import akka.actor.{Actor, ActorSystem, Props}
+import akka.actor.{Actor, ActorSystem, Props, Stash}
 import controllerApp.ControllerTier.{Get, Post}
 import controllerApp.FrontendTier.{ShowData, UpdateData}
+import controllerApp.DatabaseTier._
+
+case class User(username: String, email: String)
+
+object DatabaseTier {
+  case object Connect
+  case object Disconnect
+}
 
 object ControllerTier {
   sealed trait ControllerMsg
@@ -14,7 +22,7 @@ object ControllerTier {
 
 class ControllerApp extends Actor {
   override def receive: Receive = {
-    case Get => println("Backend: Fetching data from a DB")
+    case Get => println("Backend: Fetching data from the DB")
     case Post => println("Backend: Submitted new data to the DB")
     case _ => println("Request not supported")
   }
@@ -26,21 +34,34 @@ object FrontendTier {
   case object UpdateData extends FrontendMsg
 }
 
-class FrontendApp extends Actor {
+class FrontendApp extends Actor with Stash{
   // val controller = context.actorOf(Props[ControllerApp], "controller") // BAD
   val controller = context.actorOf(ControllerTier.props, "controller") // GOOD
 
-  override def receive: Receive = {
-    case ShowData => {
+  def receive = disconnected()
+
+  def disconnected(): Actor.Receive = {
+    case Connect =>
+      println(s"Controller connected to DB")
+      unstashAll()
+      context.become(connected)
+    case _ =>
+      stash()
+  }
+
+  def connected(): Actor.Receive = {
+    case Disconnect =>
+      println("Controller disconnect from DB")
+      context.unbecome()
+    case ShowData =>
       println(" Showing some data on the screen")
       controller ! Get
-    }
-    case UpdateData => {
+    case UpdateData =>
+      //println(s"Controller received ${op} from user: ${user}")
       println(" Submitting new data to the app")
       controller ! Post
-    }
-    case _ => println("Unsupported action encountered")
   }
+
 }
 
 object ControllerAppDemo extends App {
@@ -49,6 +70,7 @@ object ControllerAppDemo extends App {
 
   val webapp = system.actorOf(Props[FrontendApp], "simple-web-app")
 
+  webapp ! Connect
   webapp ! ShowData
   Thread.sleep(2000)
   webapp ! UpdateData
